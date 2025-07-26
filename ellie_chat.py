@@ -5,7 +5,7 @@ import time
 
 from dotenv import load_dotenv
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold, Audio
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 import sounddevice as sd
 import numpy as np
 
@@ -18,16 +18,12 @@ if API_KEY is None:
 
 genai.configure(api_key=API_KEY)
 
-# --- Model Selection for Live API ---
-# These are preview models for streaming audio. Always check the official docs for the latest.
-# 'gemini-1.5-flash-preview-0514' is for input (speech-to-text + LLM)
-# 'gemini-2.5-flash-preview-tts' is for output (text-to-speech)
-# Note: As of early 2025, these model names are common. They might evolve.
-AUDIO_INPUT_MODEL = 'gemini-1.5-flash-preview-0514'
-TTS_OUTPUT_MODEL = 'gemini-2.5-flash-preview-tts'
+# --- Model Selection ---
+# These are models that support text generation
+# Note: Audio streaming features may not be available in all versions
+AUDIO_INPUT_MODEL = 'gemini-1.5-flash'  # Use stable model name
 
 llm_model = genai.GenerativeModel(AUDIO_INPUT_MODEL)
-tts_model = genai.GenerativeModel(TTS_OUTPUT_MODEL)
 
 # --- Audio Parameters ---
 SAMPLE_RATE = 16000  # Common sample rate for speech
@@ -104,21 +100,15 @@ def run_voice_chat():
         ])
 
         # Generate the initial greeting audio for Ellie
-        # Use a text-to-speech model
+        # For now, just print the text greeting since TTS might not be available
         try:
             greeting_text = "Heyyy, what's good, sir? Ellie here, ready to spill some tea or just chill. Like, literally, tell me what's up!"
             print(f"Ellie (text): {greeting_text}", flush=True) # Print text version of greeting
             speaking_event.set() # Indicate Ellie is speaking, so mic input is paused
-            greeting_audio_response = tts_model.generate_content(
-                genai.types.TextPart(text=greeting_text),
-                stream=True
-            )
-            audio_chunks = []
-            for chunk in greeting_audio_response:
-                if chunk.audio:
-                    audio_chunks.append(np.frombuffer(chunk.audio.chunk, dtype=DTYPE))
-            if audio_chunks:
-                play_audio(np.concatenate(audio_chunks), SAMPLE_RATE)
+            
+            # Note: TTS functionality might require different model or API approach
+            # For now, we'll just use text responses
+            
             speaking_event.clear() # Ellie finished speaking, resume mic input
         except Exception as e:
             print(f"Error generating/playing greeting audio: {e}", flush=True)
@@ -149,61 +139,18 @@ def run_voice_chat():
                 continue
 
             try:
-                # Send the audio data to the Gemini Live model
-                # This is the core of the real-time interaction
-                response_stream = stream_chat.send_message(
-                    Audio(audio_data_bytes),
-                    stream=True
-                    # safety_settings=safety_settings # Add safety settings if desired, as above
-                )
-
-                transcribed_text = ""
-                ellie_response_text = ""
-                ellie_audio_chunks = []
-
-                for chunk in response_stream:
-                    # Process text (STT result) and audio (TTS result) from the stream
-                    if chunk.text:
-                        # This is the transcription of YOUR speech
-                        transcribed_text += chunk.text
-                        print(f"\rYou (transcribing): {transcribed_text}", end="", flush=True) # Real-time transcription
-
-                    if chunk.audio:
-                        # This is Ellie's generated audio response
-                        ellie_audio_chunks.append(np.frombuffer(chunk.audio.chunk, dtype=DTYPE))
-                        speaking_event.set() # Indicate Ellie is speaking
-
-                    if chunk.parts and chunk.parts[0].text:
-                        # This is Ellie's full text response (might come after initial audio)
-                        ellie_response_text += chunk.parts[0].text
-
-                if transcribed_text:
-                    print(f"\rYou (said): {transcribed_text}", flush=True) # Final transcribed text
-
-                    # Check for exit commands
-                    if "exit" in transcribed_text.lower() or "goodbye" in transcribed_text.lower():
-                        print("Ellie: Peace out, sir! Catch ya on the flip side! 👋", flush=True)
-                        # Generate farewell audio
-                        farewell_audio_response = tts_model.generate_content(
-                            genai.types.TextPart(text="Peace out, sir! Catch ya on the flip side!"),
-                            stream=True
-                        )
-                        audio_chunks = []
-                        for chunk in farewell_audio_response:
-                            if chunk.audio:
-                                audio_chunks.append(np.frombuffer(chunk.audio.chunk, dtype=DTYPE))
-                        if audio_chunks:
-                            play_audio(np.concatenate(audio_chunks), SAMPLE_RATE)
-                        break # Exit the loop
-
-                if ellie_response_text:
-                    print(f"Ellie (text): {ellie_response_text}", flush=True) # Print Ellie's full text response
-
-                if ellie_audio_chunks:
-                    play_audio(np.concatenate(ellie_audio_chunks), SAMPLE_RATE)
-                speaking_event.clear() # Ellie finished speaking
-
-                print("\nWaiting for your input, sir...", flush=True) # Prompt for next input
+                # For now, we'll skip audio processing since the current API version
+                # might not support real-time audio streaming as implemented here
+                # Instead, we'll wait for text input or implement a different audio approach
+                
+                # Placeholder for audio processing - you could implement:
+                # 1. Save audio to a file and send it as a file upload
+                # 2. Use a speech-to-text service first, then send text
+                # 3. Wait for Google to release the full audio streaming API
+                
+                print("Audio captured, but audio processing not fully implemented yet.")
+                print("Please use the text version (ellie_chat_text.py) for now.")
+                time.sleep(1)  # Brief pause before next iteration
 
             except Exception as e:
                 print(f"\nEllie (error): My bad, sir, something glitched during the conversation. (Error: {e})", flush=True)
